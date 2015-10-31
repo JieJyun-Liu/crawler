@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime
+from time import gmtime, strftime
 
 # multi-thread
 import gevent
@@ -13,16 +13,18 @@ from pymongo import MongoClient
 
 # monkey.patch_all()
 
-# import threading
+import threading
 import urllib2
 
 visited = set()
 tasks = Queue()
-threadNumber = 5
+threadNumber = 8
+# URL Count
+url_count = 0
 
 # Create a mongodb connection
 client = MongoClient()
-client = MongoClient('localhost', 27017)
+#client = MongoClient('localhost', 27017)
 
 # Getting a database
 db = client.url_db
@@ -30,20 +32,25 @@ db = client.url_db
 # Getting a collection
 collection = db.url_collection
 
-cursor = db.url_collection.find()
-
-for document in cursor:
-    print(document)
 
 
 def init():
+    url_count = 0
     seedUrl = 'https://www.dmoz.org'
     host = 'www.dmoz.org'
     parseURL(seedUrl, host, '')
+    timer = threading.Timer(600, writeURLCount)
 
+def writeURLCount():
+    time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
+    writeString = time + " " + str(url_count)
+    f = open('url_count.txt', 'r+')
+    f.write(writeString)
+    f.close()
 
 def parseURL(href, host, root):
-
+    global url_count
+    
     html_doc = urllib2.urlopen(href).read()
     # print(html_doc)
 
@@ -65,19 +72,21 @@ def parseURL(href, host, root):
 
         # if not href.startswith('http://%s%s' % (host, root)):
         #     continue
-        
-        db.collection.insert_one(
-            {
-                "urls": {
-                    "href": href
-                    "host": host
-                    "root": root
-                },
+        data = { 'url':href }
 
-                "date": datetime.strptime("2014-10-01", "%Y-%m-%d"),
-                "count": 1
-            }
-        )
+        # If value not exist
+        if db.collection.find(data).count() == 0:
+            tasks.put(href)
+            url_count = url_count + 1
+            db.collection.update(data, data, upsert=True);
+            print href
+        
+        # db.collection.insert_one(
+        #     $urls {
+        #         "urls": href,
+        #         "date": time.strftime("%d/%m/%Y"),
+        #     }
+        # )
 
         # if href not in visited:
         #     visited.add(href)
@@ -93,14 +102,15 @@ def worker(threadNumber):
         except Empty:
             print 'Task queue is empty!'
         
-        url_list = url.split('/', 3)
+        try:
+            url_list = url.split('/', 3)
         
-        host = url_list[2]
-        root = '/'+url_list[3]
-
-        # print 'host = ', host
-        # print 'root = ', root
-        # parseURL(url, host, root)
+            host = url_list[2]
+            root = '/'+url_list[3]
+            parseURL(url, host, root)
+        
+        except:
+            pass
 
         gevent.sleep(0)
 
@@ -113,7 +123,7 @@ if __name__ == '__main__':
 
     init()
 
-    for i in range(0,5):
+    for i in range(0,8):
         jobs = []
         jobs.append(gevent.spawn(worker, i))
 
