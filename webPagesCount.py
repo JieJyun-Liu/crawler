@@ -18,11 +18,14 @@ collection = db.url_collection
 
 
 def init():
- 	while True:
- 		try:
-			timer = threading.Timer(10, writeURLCount).start()
-		except:
-			pass
+	try:
+		while True:
+			try:
+				timer = threading.Timer(600, writeURLCount).start()
+			except:
+				pass
+	except:
+		pass
 
 def writeURLCount():
 	urlCount = db.collection.count()

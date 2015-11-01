@@ -1,5 +1,6 @@
 import sys
-from time import gmtime, strftime
+import datetime
+import time
 
 # multi-thread
 import gevent
@@ -14,13 +15,11 @@ from pymongo import MongoClient
 # monkey.patch_all()
 
 import threading
-import urllib2
+import urllib2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
 
 visited = set()
 tasks = Queue()
-threadNumber = 8
-# URL Count
-url_count = 0
+threadNumber = 5
 
 # Create a mongodb connection
 client = MongoClient()
@@ -32,25 +31,26 @@ db = client.url_db
 # Getting a collection
 collection = db.url_collection
 
-
-
 def init():
     url_count = 0
-    seedUrl = 'https://www.dmoz.org'
+    seedUrl = 'http://www.dmoz.org/'
     host = 'www.dmoz.org'
     parseURL(seedUrl, host, '')
-    timer = threading.Timer(600, writeURLCount)
 
-def writeURLCount():
-    time = strftime("%Y-%m-%d %H:%M:%S", gmtime())
-    writeString = time + " " + str(url_count)
-    f = open('url_count.txt', 'r+')
+def writeURLCount(href, host, root):
+    urlCount = db.collection.count()
+    print "urlCount: ", urlCount
+    ts = time.time()
+    curtime = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+    writeString = "\n"+ curtime + " " + str(urlCount)
+    f = open('url_counts.txt', 'a')
     f.write(writeString)
     f.close()
+    parseURL(href, host, root)
 
 def parseURL(href, host, root):
     global url_count
-    
+    timer = threading.Timer(2, writeURLCount, (href, host, root)).start()
     html_doc = urllib2.urlopen(href).read()
     # print(html_doc)
 
@@ -77,24 +77,11 @@ def parseURL(href, host, root):
         # If value not exist
         if db.collection.find(data).count() == 0:
             tasks.put(href)
-            url_count = url_count + 1
             db.collection.update(data, data, upsert=True);
             print href
         
-        # db.collection.insert_one(
-        #     $urls {
-        #         "urls": href,
-        #         "date": time.strftime("%d/%m/%Y"),
-        #     }
-        # )
-
-        # if href not in visited:
-        #     visited.add(href)
-        #     tasks.put(href)
-        #     print href
-
 def worker(threadNumber):
-    while not tasks.empty():
+    while not tryasks.empty():
         print 'worker ', threadNumber
         try:
             url = tasks.get_nowait()
@@ -113,11 +100,6 @@ def worker(threadNumber):
             pass
 
         gevent.sleep(0)
-
-
-# def boss():
-#     print 'I am boss'
-
 
 if __name__ == '__main__':
 
