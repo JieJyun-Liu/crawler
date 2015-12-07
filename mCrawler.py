@@ -1,6 +1,6 @@
 import sys
 import datetime
-import time
+from time import time
 
 # multi-thread
 import gevent
@@ -15,11 +15,11 @@ from pymongo import MongoClient
 # monkey.patch_all()
 
 import threading
-import urllib2                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          
+import urllib2
+import re
+import json                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
 
-visited = set()
 tasks = Queue()
-threadNumber = 5
 
 # Create a mongodb connection
 client = MongoClient()
@@ -31,31 +31,34 @@ db = client.url_db
 # Getting a collection
 collection = db.url_collection
 
+start_time = time()
+
 def init():
-    url_count = 0
-    seedUrl = 'http://www.dmoz.org/'
-    host = 'www.dmoz.org'
+    seedUrl = 'http://www.seedquest.com/'
+    host = 'www.seedquest.com'
     parseURL(seedUrl, host, '')
 
-def writeURLCount(href, host, root):
-    urlCount = db.collection.count()
-    print "urlCount: ", urlCount
-    ts = time.time()
-    curtime = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
-    writeString = "\n"+ curtime + " " + str(urlCount)
-    f = open('url_counts.txt', 'a')
-    f.write(writeString)
-    f.close()
-    parseURL(href, host, root)
+def writeURLCount():
+   urlCount = db.collection.count()
+   
+   ts = time.time()
+   curtime = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+   
+   writeString = "\n"+ curtime + " " + str(urlCount)
+   f = open('url_counts.txt', 'a')
+   f.write(writeString)
+   f.close()
 
 def parseURL(href, host, root):
-    global url_count
-    timer = threading.Timer(2, writeURLCount, (href, host, root)).start()
+   # global url_count
+   # timer = threading.Timer(2, writeURLCount, (href, host, root)).start()
     html_doc = urllib2.urlopen(href).read()
     # print(html_doc)
 
     soup = BeautifulSoup(html_doc, 'html.parser')
     root = ''
+    patterns = ['.js', '.css', '.png', '.jpg']
+    danger = False
 
     for link in soup.find_all('a'):
         # print(link.get('href'))
@@ -70,19 +73,35 @@ def parseURL(href, host, root):
         # print 'host = ', host
         print 'href = ', href
 
+        for pattern in patterns:
+            if re.search(pattern, href):
+                danger = True
+
         # if not href.startswith('http://%s%s' % (host, root)):
         #     continue
-        data = { 'url':href }
-
+        data = {'url': href }
+        # print data
         # If value not exist
-        if db.collection.find(data).count() == 0:
+        if danger == False and db.collection.find(data).count() == 0:
             tasks.put(href)
             db.collection.update(data, data, upsert=True);
             print href
         
 def worker(threadNumber):
-    while not tryasks.empty():
+    
+    while not tasks.empty():
         print 'worker ', threadNumber
+        
+        try:
+            pass_time = time()
+            interval = pass_time - start_time
+
+            if interval > 600:
+                start_time = time()
+                writeURLCount()
+        except:
+            pass
+
         try:
             url = tasks.get_nowait()
             # print 'url: ', url
