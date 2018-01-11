@@ -1,3 +1,3 @@
 # Assignment (A multi-thread crawler)
-#### This is an assignment 
+#### This is a multithread web crawler in python.
 
